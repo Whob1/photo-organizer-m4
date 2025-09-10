@@ -72,21 +72,27 @@ class Rclone:
         try:
             import subprocess
             remote = SETTINGS.rclone_remote
-            cmd = ["rclone", "lsf", remote, "--recursive", "--files-only"]
-            res = subprocess.run(cmd, capture_output=True, text=True, timeout=max(SETTINGS.scan_max_seconds, 10))
-            if res.returncode != 0:
-                return []
+            prefixes = ["", "media", "media/by-year", "album", "shared-album"]
             out: list[tuple[Path, str]] = []
-            for line in res.stdout.splitlines():
-                rel = line.strip()
-                if not rel or rel.endswith("/"):
+            for pref in prefixes:
+                if len(out) >= max_scan:
+                    break
+                target = remote if not pref else f"{remote}{pref}"
+                cmd = ["rclone", "lsf", target, "--recursive", "--files-only"]
+                res = subprocess.run(cmd, capture_output=True, text=True, timeout=max(SETTINGS.lsf_timeout_seconds, 15))
+                if res.returncode != 0:
                     continue
-                suf = Path(rel).suffix.lower()
-                if suf in SUFFIXES:
-                    mount_path = self.mount / rel
-                    out.append((mount_path, rel))
-                    if len(out) >= max_scan:
-                        break
+                for line in res.stdout.splitlines():
+                    rel = line.strip()
+                    if not rel or rel.endswith("/"):
+                        continue
+                    rel_path = rel if not pref else f"{pref}/{rel}"
+                    suf = Path(rel_path).suffix.lower()
+                    if suf in SUFFIXES:
+                        mount_path = self.mount / rel_path
+                        out.append((mount_path, rel_path))
+                        if len(out) >= max_scan:
+                            break
             return out
         except Exception:
             return []

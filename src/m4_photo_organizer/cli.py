@@ -1,6 +1,8 @@
 import typer
 from rich.console import Console
 from .organizer import Organizer
+from .rclone_integration import Rclone
+from .config import SETTINGS
 
 app = typer.Typer(help="M4 Photo & Video Organizer/Enhancer")
 console = Console()
@@ -84,6 +86,15 @@ def run(
     console.rule("Starting run")
     processed = org.run_once(limit=limit, scan_seconds=scan_seconds, scan_max=scan_max, src_dir=Path(src_dir) if src_dir else None)
     console.print(f"Processed: {processed}")
+
+@app.command()
+def debug_scan(scan_max: int = typer.Option(50), src_dir: str = typer.Option(None)):
+    """Print sample media paths discovered by the scanner."""
+    rc = Rclone()
+    items = list(rc.iter_media(max_scan=scan_max, src_dir=Path(src_dir) if src_dir else None))
+    for p in items[:scan_max]:
+        console.print(str(p))
+    console.print({"found": len(items)})
 
 @app.command()
 def status():

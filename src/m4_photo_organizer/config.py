@@ -36,6 +36,7 @@ class Settings(BaseModel):
     # Scanning performance tuning
     scan_max_seconds: int = Field(default=8)
     scan_max_entries_per_root: int = Field(default=2000)
+    lsf_timeout_seconds: int = Field(default=45)
 
     class Config:
         arbitrary_types_allowed = True
@@ -76,6 +77,7 @@ class Settings(BaseModel):
             restormer_default_weight=os.getenv("PHOTOORG_RESTORMER_WEIGHT", "real_denoising.pth"),
             scan_max_seconds=int(os.getenv("PHOTOORG_SCAN_SECONDS", "8")),
             scan_max_entries_per_root=int(os.getenv("PHOTOORG_SCAN_MAX_PER_ROOT", "2000")),
+            lsf_timeout_seconds=int(os.getenv("PHOTOORG_LSF_TIMEOUT", "45")),
         )
 
 SETTINGS = Settings.load()
