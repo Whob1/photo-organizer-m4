@@ -48,8 +48,8 @@ if [ "${PHOTOORG_AI_RESTORMER:-1}" = "1" ]; then
       GH_TOKEN_HEADER="-H Authorization: Bearer ${GITHUB_TOKEN}"
     fi
     URLS=(
-      "https://raw.githubusercontent.com/swz30/Restormer/master/basicsr/archs/restormer_arch.py"
-      "https://github.com/swz30/Restormer/raw/master/basicsr/archs/restormer_arch.py"
+      "https://raw.githubusercontent.com/swz30/Restormer/master/basicsr/models/archs/restormer_arch.py"
+      "https://github.com/swz30/Restormer/raw/master/basicsr/models/archs/restormer_arch.py"
     )
     fetched=0
     for u in "${URLS[@]}"; do
@@ -65,8 +65,8 @@ project_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 out = os.path.join(project_dir, 'src', 'm4_photo_organizer', 'vendor', 'restormer_arch.py')
 os.makedirs(os.path.dirname(out), exist_ok=True)
 urls = [
-  'https://raw.githubusercontent.com/swz30/Restormer/master/basicsr/archs/restormer_arch.py',
-  'https://github.com/swz30/Restormer/raw/master/basicsr/archs/restormer_arch.py',
+  'https://raw.githubusercontent.com/swz30/Restormer/master/basicsr/models/archs/restormer_arch.py',
+  'https://github.com/swz30/Restormer/raw/master/basicsr/models/archs/restormer_arch.py',
 ]
 for url in urls:
     try:

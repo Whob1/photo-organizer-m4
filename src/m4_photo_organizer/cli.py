@@ -45,8 +45,8 @@ def setup_models():
             import os, urllib.request
             rest_arch.parent.mkdir(parents=True, exist_ok=True)
             urls = [
-                "https://raw.githubusercontent.com/swz30/Restormer/master/basicsr/archs/restormer_arch.py",
-                "https://github.com/swz30/Restormer/raw/master/basicsr/archs/restormer_arch.py",
+                "https://raw.githubusercontent.com/swz30/Restormer/master/basicsr/models/archs/restormer_arch.py",
+                "https://github.com/swz30/Restormer/raw/master/basicsr/models/archs/restormer_arch.py",
             ]
             token = os.getenv("GITHUB_TOKEN")
             for u in urls:
