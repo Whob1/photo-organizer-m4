@@ -9,15 +9,23 @@ from ..ai.enhance import enhance_photo, enhance_photo_pil, summarize_enhance
 from ..ai.classify import quality_scores_bgr
 from ..ai.faces import detect_faces_bboxes_bgr
 
+from ..logging import get_logger
+
 class PhotoProcessor:
+    def __init__(self):
+        self.log = get_logger(__name__)
     def enhance(self, src: Path, dest: Path, thumb_out: Path | None = None) -> dict:
         dest.parent.mkdir(parents=True, exist_ok=True)
         summary = {}
         with Image.open(src) as im:
             im = im.convert("RGB")
             if SETTINGS.ai_enable_enhance:
-                im2, meta = enhance_photo(im)
-                summary.update({"enhance": meta})
+                try:
+                    im2, meta = enhance_photo(im)
+                    summary.update({"enhance": meta})
+                except Exception as e:
+                    self.log.exception("Photo enhancement failed; falling back", extra={"error": str(e)})
+                    im2 = im
             else:
                 im2 = im
             im2.save(dest, quality=92, optimize=True)
@@ -50,6 +58,8 @@ class PhotoProcessor:
         return summary
 
 class VideoProcessor:
+    def __init__(self):
+        self.log = get_logger(__name__)
     def enhance(self, src: Path, dest: Path, thumb_out: Path | None = None) -> dict:
         dest.parent.mkdir(parents=True, exist_ok=True)
         from ..ai.models import ensure_models, load_sessions
@@ -59,6 +69,7 @@ class VideoProcessor:
             paths = ensure_models()
             _, video_sess = load_sessions(paths)
             if video_sess is not None:
+                self.log.info("Starting RealESRGAN video SR")
                 # Read frames and write enhanced
                 import cv2
                 cap = cv2.VideoCapture(str(src))
@@ -76,11 +87,16 @@ class VideoProcessor:
                     ok, frame = cap.read()
                     if not ok:
                         break
-                    sr = enhance_frame_realesrgan(video_sess, frame, tile=256, overlap=16)
+                    try:
+                        sr = enhance_frame_realesrgan(video_sess, frame, tile=256, overlap=16)
+                    except Exception as e:
+                        self.log.exception("Frame SR failed; writing original frame", extra={"frame": frame_idx, "error": str(e)})
+                        sr = frame
                     vw.write(sr)
                     frame_idx += 1
                 vw.release()
                 cap.release()
+                self.log.info("Completed RealESRGAN video SR", extra={"frames": frame_idx})
             else:
                 # Fallback to re-encode if model unavailable
                 cmd = [

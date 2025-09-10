@@ -12,14 +12,18 @@ from .uploader import Uploader
 from imagehash import phash
 from PIL import Image
 
+from .logging import get_logger
+
 class Organizer:
     def __init__(self):
+        self.log = get_logger(__name__)
         self.db = DB(SETTINGS.db_path)
         self.rclone = Rclone()
         self.storage = StorageManager()
         self.photo = PhotoProcessor()
         self.video = VideoProcessor()
         self.uploader = Uploader()
+        self.log.info("Organizer initialized", extra={"max_disk": SETTINGS.max_disk_bytes})
 
     def organize_rel_path(self, src: Path) -> Path:
         # Prefer EXIF/metadata date for photos; fallback to mtime
@@ -48,6 +52,7 @@ class Organizer:
         size = src.stat().st_size
         need = int(size * 2.5)
         if not self.storage.ensure_room(need):
+            self.log.warning("Insufficient disk space for item", extra={"need_bytes": need, "current_usage": self.storage.usage_bytes()})
             return None
 
         # Download

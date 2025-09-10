@@ -20,5 +20,6 @@ src/m4_photo_organizer/ai/enhance.py
 src/m4_photo_organizer/ai/faces.py
 src/m4_photo_organizer/ai/models.py
 src/m4_photo_organizer/ai/onnx_infer.py
+src/m4_photo_organizer/ai/photo_restormer.py
 src/m4_photo_organizer/ai/video_sr.py
 src/m4_photo_organizer/processing/processors.py

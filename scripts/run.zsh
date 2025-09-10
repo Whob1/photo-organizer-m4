@@ -33,10 +33,14 @@ fi
 
 # Optional install for Restormer (PyTorch) if enabled via env
 if [ "${PHOTOORG_AI_RESTORMER:-1}" = "1" ]; then
-  if ! python -c 'import torch; import importlib; importlib.import_module("basicsr.archs.restormer_arch")' >/dev/null 2>&1; then
-    echo "[bootstrap] Installing PyTorch + Restormer (this may take a while)"
-    pip install --upgrade 'torch' 'torchvision' 'torchaudio' || true
-    pip install --upgrade 'git+https://github.com/swz30/Restormer.git' || true
+  echo "[bootstrap] Ensuring PyTorch and Restormer dependencies"
+  pip install --upgrade 'torch' 'torchvision' 'torchaudio' 'einops' 'timm' 'basicsr' || true
+  # Vendor the Restormer architecture file if not present
+  if [ ! -f "$PROJECT_DIR/src/m4_photo_organizer/vendor/restormer_arch.py" ]; then
+    mkdir -p "$PROJECT_DIR/src/m4_photo_organizer/vendor"
+    echo "[bootstrap] Fetching Restormer architecture file"
+    curl -fsSL https://raw.githubusercontent.com/swz30/Restormer/master/basicsr/archs/restormer_arch.py \
+      -o "$PROJECT_DIR/src/m4_photo_organizer/vendor/restormer_arch.py" || true
   fi
 fi
 

@@ -16,14 +16,27 @@ class RestormerRunner:
         import torch
         self.torch = torch
         self.device = torch.device("mps") if _mps_device_available() else torch.device("cpu")
-        # Import Restormer architecture from the official repo if installed
+        # Import Restormer architecture, prefer vendored file then basicsr
+        Restormer = None
         try:
-            from basicsr.archs.restormer_arch import Restormer  # type: ignore
-        except Exception as e:
-            raise RuntimeError("Restormer package not installed. Please enable installer in run script.") from e
-        # Instantiate a generic Restormer; small config that will accept provided weights
-        self.model = Restormer()  # relies on state dict to define shapes
-        self.model.load_state_dict(torch.load(str(weight_path), map_location="cpu"))
+            from ..vendor.restormer_arch import Restormer as VendoredRestormer  # type: ignore
+            Restormer = VendoredRestormer
+        except Exception:
+            try:
+                from basicsr.archs.restormer_arch import Restormer as PkgRestormer  # type: ignore
+                Restormer = PkgRestormer
+            except Exception as e:
+                raise RuntimeError("Restormer architecture not available. Vendored file missing and basicsr not installed.") from e
+        # Instantiate model and load weights
+        self.model = Restormer()
+        state = torch.load(str(weight_path), map_location="cpu")
+        # Some checkpoints wrap the state dict under a 'params' or 'state_dict' key
+        if isinstance(state, dict):
+            for k in ("params", "state_dict", "model", "net"):
+                if k in state and isinstance(state[k], dict):
+                    state = state[k]
+                    break
+        self.model.load_state_dict(state, strict=False)
         self.model.to(self.device)
         self.model.eval()
 
