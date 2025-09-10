@@ -86,8 +86,14 @@ def ensure_models() -> ModelPaths:
     ensure_dir(models_dir)
     photo_path = models_dir / SETTINGS.photo_model_filename
     video_path = models_dir / SETTINGS.video_model_filename
-    # Download if missing
+    # Download if missing (primary models)
     download_if_missing(SETTINGS.photo_model_url, photo_path)
     download_if_missing(SETTINGS.video_model_url, video_path)
+    # Download additional Restormer weights into subdir for future use
+    restormer_dir = models_dir / "restormer"
+    ensure_dir(restormer_dir)
+    for i, url in enumerate(SETTINGS.restormer_weights):
+        fname = url.split("/")[-1].split("?")[0]
+        download_if_missing(url, restormer_dir / fname)
     return ModelPaths(photo=photo_path, video=video_path)
 

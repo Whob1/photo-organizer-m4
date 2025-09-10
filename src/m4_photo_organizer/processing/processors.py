@@ -52,16 +52,54 @@ class PhotoProcessor:
 class VideoProcessor:
     def enhance(self, src: Path, dest: Path, thumb_out: Path | None = None) -> dict:
         dest.parent.mkdir(parents=True, exist_ok=True)
-        # Simple re-encode placeholder using ffmpeg if available
-        cmd = [
-            "ffmpeg", "-y", "-i", str(src),
-            "-c:v", "libx264", "-preset", "veryfast", "-crf", "20",
-            "-c:a", "aac", "-b:a", "160k",
-            str(dest),
-        ]
-        subprocess.run(cmd, check=True)
-        # Hook: in the future we can run a video ONNX model frame-wise if desired
-        # For now, we compute quality/face stats and thumbnails efficiently.
+        from ..ai.models import ensure_models, load_sessions
+        from ..ai.video_sr import enhance_frame_realesrgan
+        # If super-resolution is enabled, enhance frames via RealESRGAN and write a new video
+        if SETTINGS.ai_video_superres:
+            paths = ensure_models()
+            _, video_sess = load_sessions(paths)
+            if video_sess is not None:
+                # Read frames and write enhanced
+                import cv2
+                cap = cv2.VideoCapture(str(src))
+                if not cap or not cap.isOpened():
+                    raise RuntimeError("Failed to open video for SR")
+                fps = cap.get(cv2.CAP_PROP_FPS) or 24.0
+                fourcc = cv2.VideoWriter_fourcc(*"mp4v")
+                width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+                height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+                scale = 4
+                out_w, out_h = width*scale, height*scale
+                vw = cv2.VideoWriter(str(dest), fourcc, fps, (out_w, out_h))
+                frame_idx = 0
+                while True:
+                    ok, frame = cap.read()
+                    if not ok:
+                        break
+                    sr = enhance_frame_realesrgan(video_sess, frame, tile=256, overlap=16)
+                    vw.write(sr)
+                    frame_idx += 1
+                vw.release()
+                cap.release()
+            else:
+                # Fallback to re-encode if model unavailable
+                cmd = [
+                    "ffmpeg", "-y", "-i", str(src),
+                    "-c:v", "libx264", "-preset", "veryfast", "-crf", "20",
+                    "-c:a", "aac", "-b:a", "160k",
+                    str(dest),
+                ]
+                subprocess.run(cmd, check=True)
+        else:
+            # Simple re-encode placeholder using ffmpeg if available
+            cmd = [
+                "ffmpeg", "-y", "-i", str(src),
+                "-c:v", "libx264", "-preset", "veryfast", "-crf", "20",
+                "-c:a", "aac", "-b:a", "160k",
+                str(dest),
+            ]
+            subprocess.run(cmd, check=True)
+        # Hook: we now compute AI metrics and thumbnails efficiently on the enhanced output
         summary = {"frames_sampled": 0}
         try:
             cap = cv2.VideoCapture(str(dest))

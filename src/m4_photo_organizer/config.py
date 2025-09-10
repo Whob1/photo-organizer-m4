@@ -18,8 +18,18 @@ class Settings(BaseModel):
     models_dir: Path = Field(default=Path("./models"))
     photo_model_filename: str = Field(default="photo_enhance.onnx")
     video_model_filename: str = Field(default="video_enhance.onnx")
-    photo_model_url: str = Field(default="https://huggingface.co/onnx-community/esrgan/resolve/main/ESRGAN_x2.onnx")
-    video_model_url: str = Field(default="https://huggingface.co/onnx-community/srmd/resolve/main/SRMD_x2.onnx")
+    photo_model_url: str = Field(default="https://huggingface.co/deepinv/Restormer/resolve/main/gaussian_color_denoising_sigma25.pth?download=true")
+    video_model_url: str = Field(default="https://huggingface.co/bukuroo/RealESRGAN-ONNX/resolve/main/real-esrgan-x4plus-128.onnx?download=true")
+    # Additional Restormer weights
+    restormer_weights: list[str] = Field(default_factory=lambda: [
+        "https://huggingface.co/deepinv/Restormer/resolve/main/gaussian_color_denoising_sigma25.pth?download=true",
+        "https://huggingface.co/deepinv/Restormer/resolve/main/gaussian_gray_denoising_sigma25.pth?download=true",
+        "https://huggingface.co/deepinv/Restormer/resolve/main/real_denoising.pth?download=true",
+        "https://huggingface.co/deepinv/Restormer/resolve/main/single_image_defocus_deblurring.pth?download=true",
+        "https://huggingface.co/deepinv/Restormer/resolve/main/deraining.pth?download=true",
+    ])
+    # Feature flags
+    ai_video_superres: bool = Field(default=True)
 
     class Config:
         arbitrary_types_allowed = True
@@ -45,8 +55,16 @@ class Settings(BaseModel):
             models_dir=Path(os.getenv("PHOTOORG_MODELS_DIR", "./models")),
             photo_model_filename=os.getenv("PHOTOORG_PHOTO_MODEL_NAME", "photo_enhance.onnx"),
             video_model_filename=os.getenv("PHOTOORG_VIDEO_MODEL_NAME", "video_enhance.onnx"),
-            photo_model_url=os.getenv("PHOTOORG_PHOTO_MODEL_URL", "https://huggingface.co/onnx-community/esrgan/resolve/main/ESRGAN_x2.onnx"),
-            video_model_url=os.getenv("PHOTOORG_VIDEO_MODEL_URL", "https://huggingface.co/onnx-community/srmd/resolve/main/SRMD_x2.onnx"),
+            photo_model_url=os.getenv("PHOTOORG_PHOTO_MODEL_URL", "https://huggingface.co/deepinv/Restormer/resolve/main/gaussian_color_denoising_sigma25.pth?download=true"),
+            video_model_url=os.getenv("PHOTOORG_VIDEO_MODEL_URL", "https://huggingface.co/bukuroo/RealESRGAN-ONNX/resolve/main/real-esrgan-x4plus-128.onnx?download=true"),
+            restormer_weights=[
+                os.getenv("PHOTOORG_RESTORMER_W0", "https://huggingface.co/deepinv/Restormer/resolve/main/gaussian_color_denoising_sigma25.pth?download=true"),
+                os.getenv("PHOTOORG_RESTORMER_W1", "https://huggingface.co/deepinv/Restormer/resolve/main/gaussian_gray_denoising_sigma25.pth?download=true"),
+                os.getenv("PHOTOORG_RESTORMER_W2", "https://huggingface.co/deepinv/Restormer/resolve/main/real_denoising.pth?download=true"),
+                os.getenv("PHOTOORG_RESTORMER_W3", "https://huggingface.co/deepinv/Restormer/resolve/main/single_image_defocus_deblurring.pth?download=true"),
+                os.getenv("PHOTOORG_RESTORMER_W4", "https://huggingface.co/deepinv/Restormer/resolve/main/deraining.pth?download=true"),
+            ],
+            ai_video_superres=os.getenv("PHOTOORG_AI_VIDEO_SR", "1") != "0",
         )
 
 SETTINGS = Settings.load()
