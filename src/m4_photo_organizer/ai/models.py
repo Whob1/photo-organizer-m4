@@ -35,7 +35,13 @@ def download_if_missing(url: str, dest: Path) -> bool:
     ensure_dir(dest.parent)
     tmp = dest.with_suffix(dest.suffix + ".part")
     try:
-        with urllib.request.urlopen(url) as resp, tmp.open('wb') as out:
+        # Add HF token if provided via env
+        token = os.getenv("HUGGINGFACE_HUB_TOKEN") or os.getenv("HF_TOKEN")
+        headers = {}
+        if token and "huggingface.co" in url:
+            headers["Authorization"] = f"Bearer {token}"
+        req = urllib.request.Request(url, headers=headers)
+        with urllib.request.urlopen(req) as resp, tmp.open('wb') as out:
             while True:
                 chunk = resp.read(1024 * 1024)
                 if not chunk:
