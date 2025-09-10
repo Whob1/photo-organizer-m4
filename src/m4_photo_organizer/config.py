@@ -32,6 +32,9 @@ class Settings(BaseModel):
     ai_video_superres: bool = Field(default=True)
     ai_photo_restormer: bool = Field(default=True)
     restormer_default_weight: str = Field(default="real_denoising.pth")
+    # Scanning performance tuning
+    scan_max_seconds: int = Field(default=8)
+    scan_max_entries_per_root: int = Field(default=2000)
 
     class Config:
         arbitrary_types_allowed = True
@@ -69,6 +72,8 @@ class Settings(BaseModel):
             ai_video_superres=os.getenv("PHOTOORG_AI_VIDEO_SR", "1") != "0",
             ai_photo_restormer=os.getenv("PHOTOORG_AI_RESTORMER", "1") != "0",
             restormer_default_weight=os.getenv("PHOTOORG_RESTORMER_WEIGHT", "real_denoising.pth"),
+            scan_max_seconds=int(os.getenv("PHOTOORG_SCAN_SECONDS", "8")),
+            scan_max_entries_per_root=int(os.getenv("PHOTOORG_SCAN_MAX_PER_ROOT", "2000")),
         )
 
 SETTINGS = Settings.load()

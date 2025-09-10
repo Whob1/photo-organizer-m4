@@ -107,17 +107,28 @@ class Organizer:
         self.db.add(str(rel), h, media_type, phash=p_hash_hex)
         return final_out
 
-    def run_once(self, limit: int = 20) -> int:
+    def run_once(self, limit: int = 20, scan_seconds: int | None = None, scan_max: int | None = None, src_dir: Path | None = None) -> int:
         self.log.info("Scanning for media to process", extra={"limit": limit})
         count = 0
-        for p in self.rclone.iter_media(max_scan=limit * 50):
-            if count >= limit:
-                break
-            self.log.debug("Processing item", extra={"path": str(p)})
-            out = self.process_one(p)
-            if out:
-                count += 1
-                self.log.info("Processed item", extra={"count": count, "output": str(out)})
+        # temporarily override scanning knobs
+        if scan_seconds is not None:
+            old_secs = SETTINGS.scan_max_seconds
+            SETTINGS.scan_max_seconds = scan_seconds
+        else:
+            old_secs = None
+        try:
+            max_scan = scan_max if scan_max is not None else limit * 50
+            for p in self.rclone.iter_media(max_scan=max_scan, src_dir=src_dir):
+                if count >= limit:
+                    break
+                self.log.debug("Processing item", extra={"path": str(p)})
+                out = self.process_one(p)
+                if out:
+                    count += 1
+                    self.log.info("Processed item", extra={"count": count, "output": str(out)})
+        finally:
+            if old_secs is not None:
+                SETTINGS.scan_max_seconds = old_secs
         self.log.info("Run complete", extra={"processed": count})
         return count
 

@@ -74,10 +74,15 @@ def setup_models():
     })
 
 @app.command()
-def run(limit: int = typer.Option(20, help="Max items to process this run")):
+def run(
+    limit: int = typer.Option(20, help="Max items to process this run"),
+    scan_seconds: int = typer.Option(None, help="Max seconds to spend scanning per root"),
+    scan_max: int = typer.Option(None, help="Max files to scan total"),
+    src_dir: str = typer.Option(None, help="Specific directory to scan (within the mount)")
+):
     org = Organizer()
     console.rule("Starting run")
-    processed = org.run_once(limit=limit)
+    processed = org.run_once(limit=limit, scan_seconds=scan_seconds, scan_max=scan_max, src_dir=Path(src_dir) if src_dir else None)
     console.print(f"Processed: {processed}")
 
 @app.command()
