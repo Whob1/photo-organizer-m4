@@ -217,55 +217,79 @@ class Rclone:
             except Exception as e:
                 self.log.warning(f"mdfind failed: {e}")
         
-        # Try configured mount paths
-        if found_count < max_scan:
-            self.log.debug("Searching configured mount paths")
-            media_root = self.mount / "media"
-            candidates: List[Path] = []
+        # PRIORITY: Search Google Photos mount if it exists
+        if found_count < max_scan and self.mount.exists():
+            self.log.info(f"Searching Google Photos mount: {self.mount}")
             
-            if not src_dir:  # Only use default candidates if no specific dir provided
-                try:
-                    from datetime import datetime
-                    y = datetime.now().year
-                    recent = [str(y), str(y-1), str(y-2)]
-                except Exception:
-                    recent = []
-                
-                # Include mount root first
-                candidates.append(self.mount)
-                by_year = media_root / "by-year"
-                for yy in recent:
-                    candidates.append(by_year / yy)
-                candidates.extend([
-                    media_root / "by-month",
-                    media_root / "by-day", 
-                    media_root / "all",
-                    self.mount / "album",
-                    self.mount / "shared-album",
-                ])
-            
-            # Walk each candidate root
-            per_root = min(max_scan - found_count, SETTINGS.scan_max_entries_per_root)
-            max_sec = SETTINGS.scan_max_seconds
-            
-            for base in candidates:
-                if found_count >= max_scan:
-                    break
-                if not base.exists():
-                    self.log.debug(f"Candidate path does not exist: {base}")
-                    continue
-                    
-                self.log.debug(f"Searching candidate path: {base}")
-                try:
-                    for p in self._bfs_scandir(base, per_root, max_sec):
-                        self._remote_map[p] = None
-                        yield p
+            # First do a comprehensive recursive search of the entire mount
+            try:
+                mount_files = list(self._find_media_recursive(self.mount, max_scan - found_count, SETTINGS.scan_max_seconds))
+                if mount_files:
+                    self.log.info(f"Found {len(mount_files)} files in Google Photos mount via recursive search")
+                    for item in mount_files:
+                        self._remote_map[item] = None
+                        yield item
                         found_count += 1
                         if found_count >= max_scan:
-                            break
-                except Exception as e:
-                    self.log.warning(f"Error searching {base}: {e}")
-                    continue
+                            self.log.info(f"Mount search complete: found {found_count} files")
+                            return
+                else:
+                    self.log.info("No files found in mount via recursive search, trying structured search")
+            except Exception as e:
+                self.log.warning(f"Recursive mount search failed: {e}, trying structured search")
+            
+            # If recursive didn't work or find enough, try structured search
+            if found_count < max_scan:
+                self.log.debug("Trying structured search of mount paths")
+                media_root = self.mount / "media"
+                candidates: List[Path] = []
+                
+                if not src_dir:  # Only use default candidates if no specific dir provided
+                    try:
+                        from datetime import datetime
+                        y = datetime.now().year
+                        recent = [str(y), str(y-1), str(y-2), str(y-3), str(y-4)]  # Search more years
+                    except Exception:
+                        recent = []
+                    
+                    # Include mount root first
+                    candidates.append(self.mount)
+                    by_year = media_root / "by-year"
+                    for yy in recent:
+                        candidates.append(by_year / yy)
+                    candidates.extend([
+                        media_root / "by-month",
+                        media_root / "by-day", 
+                        media_root / "all",
+                        self.mount / "album",
+                        self.mount / "shared-album",
+                    ])
+                
+                # Walk each candidate root with higher limits for mount
+                per_root = min(max_scan - found_count, SETTINGS.scan_max_entries_per_root * 2)  # Double limit for mount
+                max_sec = SETTINGS.scan_max_seconds * 2  # Double time for mount
+                
+                for base in candidates:
+                    if found_count >= max_scan:
+                        break
+                    if not base.exists():
+                        self.log.debug(f"Candidate path does not exist: {base}")
+                        continue
+                        
+                    self.log.debug(f"Searching candidate path: {base}")
+                    try:
+                        for p in self._bfs_scandir(base, per_root, max_sec):
+                            self._remote_map[p] = None
+                            yield p
+                            found_count += 1
+                            if found_count >= max_scan:
+                                break
+                    except Exception as e:
+                        self.log.warning(f"Error searching {base}: {e}")
+                        continue
+        elif found_count < max_scan:
+            self.log.warning(f"Google Photos mount does not exist: {self.mount}")
+            self.log.info("Set PHOTOORG_GOOGLE_MOUNT environment variable if your mount is elsewhere")
         
         # Final fallback: search common directories
         if found_count < max_scan:
