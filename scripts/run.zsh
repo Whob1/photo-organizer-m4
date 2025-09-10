@@ -43,9 +43,42 @@ if [ "${PHOTOORG_AI_RESTORMER:-1}" = "1" ]; then
   if [ ! -f "$PROJECT_DIR/src/m4_photo_organizer/vendor/restormer_arch.py" ]; then
     mkdir -p "$PROJECT_DIR/src/m4_photo_organizer/vendor"
     echo "[bootstrap] Fetching Restormer architecture file"
-    if ! curl -fsSL https://raw.githubusercontent.com/swz30/Restormer/master/basicsr/archs/restormer_arch.py \
-      -o "$PROJECT_DIR/src/m4_photo_organizer/vendor/restormer_arch.py"; then
-      echo "[bootstrap] WARNING: Could not fetch Restormer architecture file. Photo Restormer will be disabled."
+    GH_TOKEN_HEADER=""
+    if [ -n "${GITHUB_TOKEN:-}" ]; then
+      GH_TOKEN_HEADER="-H Authorization: Bearer ${GITHUB_TOKEN}"
+    fi
+    URLS=(
+      "https://raw.githubusercontent.com/swz30/Restormer/master/basicsr/archs/restormer_arch.py"
+      "https://github.com/swz30/Restormer/raw/master/basicsr/archs/restormer_arch.py"
+    )
+    fetched=0
+    for u in "${URLS[@]}"; do
+      if curl -fsSL ${GH_TOKEN_HEADER} "$u" -o "$PROJECT_DIR/src/m4_photo_organizer/vendor/restormer_arch.py"; then
+        fetched=1; break
+      fi
+    done
+    if [ "$fetched" -ne 1 ]; then
+      # Python fallback
+      python - <<'PY'
+import os, sys, urllib.request
+project_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+out = os.path.join(project_dir, 'src', 'm4_photo_organizer', 'vendor', 'restormer_arch.py')
+os.makedirs(os.path.dirname(out), exist_ok=True)
+urls = [
+  'https://raw.githubusercontent.com/swz30/Restormer/master/basicsr/archs/restormer_arch.py',
+  'https://github.com/swz30/Restormer/raw/master/basicsr/archs/restormer_arch.py',
+]
+for url in urls:
+    try:
+        req = urllib.request.Request(url)
+        with urllib.request.urlopen(req) as resp, open(out, 'wb') as f:
+            f.write(resp.read())
+        print('[bootstrap] Restormer arch fetched via Python:', url)
+        sys.exit(0)
+    except Exception as e:
+        continue
+print('[bootstrap] WARNING: Could not fetch Restormer architecture file. Photo Restormer will be disabled.')
+PY
     fi
   fi
 fi

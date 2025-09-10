@@ -39,14 +39,26 @@ def setup_models():
         torch_ok = False
         mps = False
 
-    # Attempt to fetch vendor file if missing
+    # Attempt to fetch vendor file if missing (with GH token and fallback URL)
     if not rest_arch.exists():
         try:
-            import urllib.request
+            import os, urllib.request
             rest_arch.parent.mkdir(parents=True, exist_ok=True)
-            url = "https://raw.githubusercontent.com/swz30/Restormer/master/basicsr/archs/restormer_arch.py"
-            with urllib.request.urlopen(url) as resp, open(rest_arch, 'wb') as out:
-                out.write(resp.read())
+            urls = [
+                "https://raw.githubusercontent.com/swz30/Restormer/master/basicsr/archs/restormer_arch.py",
+                "https://github.com/swz30/Restormer/raw/master/basicsr/archs/restormer_arch.py",
+            ]
+            token = os.getenv("GITHUB_TOKEN")
+            for u in urls:
+                try:
+                    req = urllib.request.Request(u)
+                    if token:
+                        req.add_header("Authorization", f"Bearer {token}")
+                    with urllib.request.urlopen(req) as resp, open(rest_arch, 'wb') as out:
+                        out.write(resp.read())
+                    break
+                except Exception:
+                    continue
         except Exception:
             pass
 
