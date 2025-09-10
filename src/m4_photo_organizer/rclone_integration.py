@@ -100,10 +100,12 @@ class Rclone:
             return []
 
     def _find_media_recursive(self, root: Path, max_entries: int, max_seconds: int) -> Iterator[Path]:
-        """Enhanced recursive search with better error handling and logging."""
+        """Enhanced recursive search with better error handling and progress logging."""
         start = time.time()
         found = 0
-        self.log.debug(f"Starting recursive search in {root}")
+        dirs_scanned = 0
+        last_progress = 0
+        self.log.info(f"🔍 Starting recursive search in {root}")
         
         if not root.exists():
             self.log.warning(f"Search root does not exist: {root}")
@@ -115,21 +117,41 @@ class Rclone:
             
         try:
             for item in root.rglob("*"):
-                if found >= max_entries or (time.time() - start) > max_seconds:
-                    self.log.debug(f"Search limits reached: found={found}, time={time.time()-start:.1f}s")
+                elapsed = time.time() - start
+                
+                # Check limits
+                if found >= max_entries or elapsed > max_seconds:
+                    self.log.info(f"Search limits reached: found={found}, time={elapsed:.1f}s")
                     return
+                
+                # Progress updates every 15 seconds
+                if elapsed - last_progress > 15:
+                    self.log.info(f"📊 Progress: {found} files found, {dirs_scanned} dirs scanned, {elapsed:.1f}s elapsed")
+                    last_progress = elapsed
+                
+                # Count directories for progress
+                if item.is_dir():
+                    dirs_scanned += 1
+                    if dirs_scanned % 100 == 0:
+                        self.log.info(f"📁 Scanned {dirs_scanned} directories, found {found} files so far...")
                     
                 if item.is_file() and not item.name.startswith('.'):
                     suffix = item.suffix.lower()
                     if suffix in SUFFIXES:
                         found += 1
                         self.log.debug(f"Found media file: {item}")
+                        
+                        # Progress update every 25 files found
+                        if found % 25 == 0:
+                            self.log.info(f"✅ Found {found} media files so far (in {elapsed:.1f}s)...")
+                        
                         yield item
                         
         except (PermissionError, OSError) as e:
             self.log.warning(f"Error during recursive search in {root}: {e}")
             
-        self.log.debug(f"Recursive search completed: found {found} files in {time.time()-start:.1f}s")
+        elapsed = time.time() - start
+        self.log.info(f"🎉 Recursive search completed: found {found} files in {elapsed:.1f}s")
 
     def _search_common_directories(self, max_scan: int) -> Iterator[Path]:
         """Search common photo/video directories on the system."""
@@ -223,20 +245,21 @@ class Rclone:
             
             # First do a comprehensive recursive search of the entire mount
             try:
+                self.log.info(f"🚀 Starting comprehensive recursive search of Google Photos mount...")
                 mount_files = list(self._find_media_recursive(self.mount, max_scan - found_count, SETTINGS.scan_max_seconds))
                 if mount_files:
-                    self.log.info(f"Found {len(mount_files)} files in Google Photos mount via recursive search")
+                    self.log.info(f"🎯 Found {len(mount_files)} files in Google Photos mount via recursive search")
                     for item in mount_files:
                         self._remote_map[item] = None
                         yield item
                         found_count += 1
                         if found_count >= max_scan:
-                            self.log.info(f"Mount search complete: found {found_count} files")
+                            self.log.info(f"✅ Mount search complete: found {found_count} files")
                             return
                 else:
-                    self.log.info("No files found in mount via recursive search, trying structured search")
+                    self.log.info("⚠️  No files found in mount via recursive search, trying structured search")
             except Exception as e:
-                self.log.warning(f"Recursive mount search failed: {e}, trying structured search")
+                self.log.warning(f"❌ Recursive mount search failed: {e}, trying structured search")
             
             # If recursive didn't work or find enough, try structured search
             if found_count < max_scan:
