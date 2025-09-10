@@ -22,6 +22,7 @@ dependencies = [
   "numpy>=1.26",
   "opencv-python>=4.10",
   "piexif>=1.1",
+  "imagehash>=4.3",
   "tqdm>=4.66"
 ]
 

@@ -25,6 +25,12 @@ pip install -e .
 command -v ffmpeg >/dev/null 2>&1 || echo "[bootstrap] WARNING: ffmpeg not found; video processing may fail."
 command -v rclone >/dev/null 2>&1 || echo "[bootstrap] WARNING: rclone not found; Google Photos operations may fail."
 
+# Apple Silicon hints
+if sysctl -n machdep.cpu.brand_string | grep -qi "Apple"; then
+  export PYTORCH_ENABLE_MPS_FALLBACK=1
+  echo "[bootstrap] Apple Silicon detected. If PyTorch is installed, MPS fallback is enabled."
+fi
+
 # Ensure dirs
 photoorg setup || true
 

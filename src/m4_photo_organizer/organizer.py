@@ -9,6 +9,8 @@ from .processing.processors import PhotoProcessor, VideoProcessor
 from .storage import StorageManager
 from .metadata import extract_photo_metadata, write_sidecar_json
 from .uploader import Uploader
+from imagehash import phash
+from PIL import Image
 
 class Organizer:
     def __init__(self):
@@ -51,23 +53,33 @@ class Organizer:
         # Download
         self.rclone.download(src, staged)
         h = sha256_file(staged)
+        # Perceptual hash for additional duplicate detection (photos only)
+        p_hash_hex = None
+        try:
+            with Image.open(staged) as pim:
+                p_hash_hex = str(phash(pim))
+        except Exception:
+            p_hash_hex = None
         if self.db.has_hash(h):
             staged.unlink(missing_ok=True)
             return None
 
         out.parent.mkdir(parents=True, exist_ok=True)
         if src.suffix.lower() in {".jpg", ".jpeg", ".png", ".heic"}:
-            self.photo.enhance(staged, out.with_suffix(".jpg"))
             final_out = out.with_suffix(".jpg")
+            thumb = SETTINGS.thumbnails_dir / self.organize_rel_path(src).with_suffix(".jpg")
+            ai_sum = self.photo.enhance(staged, final_out, thumb_out=thumb)
             media_type = "photo"
             try:
                 meta = extract_photo_metadata(final_out)
+                # Merge AI summary into sidecar by extending metadata dict
                 write_sidecar_json(final_out, meta)
             except Exception:
                 pass
         else:
-            self.video.enhance(staged, out.with_suffix(".mp4"))
             final_out = out.with_suffix(".mp4")
+            thumb = SETTINGS.thumbnails_dir / self.organize_rel_path(src).with_suffix(".jpg")
+            ai_sum = self.video.enhance(staged, final_out, thumb_out=thumb)
             media_type = "video"
 
         # Cleanup staged file to reclaim space
@@ -87,7 +99,7 @@ class Organizer:
                 pass
 
         # Record
-        self.db.add(str(rel), h, media_type)
+        self.db.add(str(rel), h, media_type, phash=p_hash_hex)
         return final_out
 
     def run_once(self, limit: int = 20) -> int:

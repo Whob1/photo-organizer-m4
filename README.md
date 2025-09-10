@@ -24,6 +24,25 @@ CLI
 photoorg run --help
 ```
 
+Recommended way to run (auto-creates venv, installs deps, sets Apple Silicon hints):
+```
+scripts/run.zsh setup
+scripts/run.zsh run --limit 5
+scripts/run.zsh status
+```
+
+AI features
+- Photo enhancement: autocontrast, sharpen, gentle color/contrast tweaks
+- Face detection (OpenCV Haar); face count and bounding boxes (limited in sidecar)
+- Quality scoring: blur, brightness, colorfulness; tags like blurry/low_light/vivid
+- Perceptual de-duplication: pHash stored alongside SHA-256
+- Thumbnails: generated at data/thumbnails
+
+Configuration flags (env)
+- PHOTOORG_AI_FACES=0 to disable face detection
+- PHOTOORG_AI_CLASSIFY=0 to disable quality scoring/tags
+- PHOTOORG_AI_ENHANCE=0 to disable enhancement
+
 Directories
 - data/raw: staging downloads
 - data/processed: processed output ready to upload

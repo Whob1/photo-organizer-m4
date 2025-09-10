@@ -8,9 +8,13 @@ class Settings(BaseModel):
     raw_dir: Path = Field(default=Path("./data/raw"))
     processed_dir: Path = Field(default=Path("./data/processed"))
     tmp_dir: Path = Field(default=Path("./data/tmp"))
+    thumbnails_dir: Path = Field(default=Path("./data/thumbnails"))
     max_disk_bytes: int = Field(default=5 * 1024 * 1024 * 1024)  # 5GB
     db_path: Path = Field(default=Path("./data/state.db"))
     concurrent_tasks: int = Field(default=4)
+    ai_enable_faces: bool = Field(default=True)
+    ai_enable_classify: bool = Field(default=True)
+    ai_enable_enhance: bool = Field(default=True)
 
     class Config:
         arbitrary_types_allowed = True
@@ -27,8 +31,12 @@ class Settings(BaseModel):
             raw_dir=work / "raw",
             processed_dir=work / "processed",
             tmp_dir=work / "tmp",
+            thumbnails_dir=work / "thumbnails",
             max_disk_bytes=max_bytes,
             db_path=work / "state.db",
+            ai_enable_faces=os.getenv("PHOTOORG_AI_FACES", "1") != "0",
+            ai_enable_classify=os.getenv("PHOTOORG_AI_CLASSIFY", "1") != "0",
+            ai_enable_enhance=os.getenv("PHOTOORG_AI_ENHANCE", "1") != "0",
         )
 
 SETTINGS = Settings.load()

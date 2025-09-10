@@ -8,6 +8,7 @@ CREATE TABLE IF NOT EXISTS processed (
   id INTEGER PRIMARY KEY,
   rel_path TEXT NOT NULL,
   sha256 TEXT NOT NULL,
+  phash TEXT,
   media_type TEXT NOT NULL,
   processed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   UNIQUE(rel_path),
@@ -21,6 +22,11 @@ class DB:
         self.path.parent.mkdir(parents=True, exist_ok=True)
         with sqlite3.connect(self.path) as conn:
             conn.executescript(SCHEMA)
+            # Best-effort schema evolution
+            try:
+                conn.execute("ALTER TABLE processed ADD COLUMN phash TEXT")
+            except sqlite3.OperationalError:
+                pass
 
     def has_hash(self, sha256: str) -> bool:
         with sqlite3.connect(self.path) as conn:
@@ -32,11 +38,11 @@ class DB:
             cur = conn.execute("SELECT 1 FROM processed WHERE rel_path=?", (rel_path,))
             return cur.fetchone() is not None
 
-    def add(self, rel_path: str, sha256: str, media_type: str):
+    def add(self, rel_path: str, sha256: str, media_type: str, phash: str | None = None):
         with sqlite3.connect(self.path) as conn:
             conn.execute(
-                "INSERT OR IGNORE INTO processed(rel_path, sha256, media_type) VALUES(?,?,?)",
-                (rel_path, sha256, media_type),
+                "INSERT OR IGNORE INTO processed(rel_path, sha256, phash, media_type) VALUES(?,?,?,?)",
+                (rel_path, sha256, phash, media_type),
             )
             conn.commit()
 
