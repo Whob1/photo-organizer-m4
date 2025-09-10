@@ -12,6 +12,7 @@ class Settings(BaseModel):
     max_disk_bytes: int = Field(default=5 * 1024 * 1024 * 1024)  # 5GB
     db_path: Path = Field(default=Path("./data/state.db"))
     concurrent_tasks: int = Field(default=4)
+    rclone_remote: str = Field(default="googlephotos:")
     ai_enable_faces: bool = Field(default=True)
     ai_enable_classify: bool = Field(default=True)
     ai_enable_enhance: bool = Field(default=True)
@@ -57,6 +58,7 @@ class Settings(BaseModel):
             ai_enable_faces=os.getenv("PHOTOORG_AI_FACES", "1") != "0",
             ai_enable_classify=os.getenv("PHOTOORG_AI_CLASSIFY", "1") != "0",
             ai_enable_enhance=os.getenv("PHOTOORG_AI_ENHANCE", "1") != "0",
+            rclone_remote=os.getenv("PHOTOORG_RCLONE_REMOTE", "googlephotos:"),
             models_dir=Path(os.getenv("PHOTOORG_MODELS_DIR", "./models")),
             photo_model_filename=os.getenv("PHOTOORG_PHOTO_MODEL_NAME", "restormer_real_denoising.pth"),
             video_model_filename=os.getenv("PHOTOORG_VIDEO_MODEL_NAME", "video_enhance.onnx"),
@@ -77,4 +79,3 @@ class Settings(BaseModel):
         )
 
 SETTINGS = Settings.load()
-

@@ -10,6 +10,7 @@ SUFFIXES = {".jpg", ".jpeg", ".png", ".heic", ".mp4", ".mov", ".avi", ".mkv"}
 class Rclone:
     def __init__(self, mount_path: Path | None = None):
         self.mount = Path(mount_path or SETTINGS.google_photos_mount)
+        self._remote_map: dict[Path, str | None] = {}
 
     def _bfs_scandir(self, root: Path, max_entries: int, max_seconds: int) -> Iterator[Path]:
         start = time.time()
@@ -67,12 +68,45 @@ class Rclone:
         except Exception:
             return iter(())
 
+    def _lsf_media(self, max_scan: int) -> list[tuple[Path, str]]:
+        try:
+            import subprocess
+            remote = SETTINGS.rclone_remote
+            cmd = ["rclone", "lsf", remote, "--recursive", "--files-only"]
+            res = subprocess.run(cmd, capture_output=True, text=True, timeout=max(SETTINGS.scan_max_seconds, 10))
+            if res.returncode != 0:
+                return []
+            out: list[tuple[Path, str]] = []
+            for line in res.stdout.splitlines():
+                rel = line.strip()
+                if not rel or rel.endswith("/"):
+                    continue
+                suf = Path(rel).suffix.lower()
+                if suf in SUFFIXES:
+                    mount_path = self.mount / rel
+                    out.append((mount_path, rel))
+                    if len(out) >= max_scan:
+                        break
+            return out
+        except Exception:
+            return []
+
     def iter_media(self, max_scan: int = 2000, src_dir: Path | None = None) -> Iterator[Path]:
+        # Try rclone lsf first for speed on FUSE mounts
+        lsf = self._lsf_media(max_scan)
+        if lsf:
+            self._remote_map.clear()
+            for mp, rel in lsf:
+                self._remote_map[mp] = rel
+                yield mp
+            return
         # Try fast mdfind first on macOS
         fast = list(self._mdfind_media(max_scan, src_dir))
         if fast:
-            for p in fast:
-                yield p
+            self._remote_map.clear()
+            for mp, _ in fast:
+                self._remote_map[mp] = None
+                yield mp
             return
         # Build candidate roots
         media_root = self.mount / "media"
@@ -104,6 +138,7 @@ class Rclone:
             if not base.exists():
                 continue
             for p in self._bfs_scandir(base, per_root, max_sec):
+                self._remote_map[p] = None
                 yield p
                 seen += 1
                 if seen >= max_scan:
@@ -111,7 +146,16 @@ class Rclone:
 
     def download(self, src: Path, dest: Path) -> None:
         dest.parent.mkdir(parents=True, exist_ok=True)
-        # Copy via local file system since it's a mount
+        if src.exists():
+            subprocess.run(["/bin/cp", "-f", str(src), str(dest)], check=True)
+            return
+        # Try rclone copyto using the remote path mapping
+        rel = self._remote_map.get(src)
+        if rel:
+            remote = SETTINGS.rclone_remote + rel
+            subprocess.run(["rclone", "copyto", remote, str(dest)], check=True)
+            return
+        # Fallback attempt: cp (may fail)
         subprocess.run(["/bin/cp", "-f", str(src), str(dest)], check=True)
 
     def upload(self, src: Path, dest_rel: Path) -> None:
