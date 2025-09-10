@@ -18,3 +18,4 @@ __pycache__/
 /output/         # Output folder for processed photos
 Thumbs.db        # Windows thumbnail cache
 *.bak            # Backup files
+models/
