@@ -4,6 +4,7 @@ src/m4_photo_organizer/__init__.py
 src/m4_photo_organizer/cli.py
 src/m4_photo_organizer/config.py
 src/m4_photo_organizer/db.py
+src/m4_photo_organizer/logging.py
 src/m4_photo_organizer/metadata.py
 src/m4_photo_organizer/organizer.py
 src/m4_photo_organizer/rclone_integration.py
@@ -23,3 +24,4 @@ src/m4_photo_organizer/ai/onnx_infer.py
 src/m4_photo_organizer/ai/photo_restormer.py
 src/m4_photo_organizer/ai/video_sr.py
 src/m4_photo_organizer/processing/processors.py
+src/m4_photo_organizer/vendor/restormer_arch.py

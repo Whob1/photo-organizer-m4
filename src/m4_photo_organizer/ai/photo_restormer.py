@@ -21,8 +21,12 @@ class RestormerRunner:
         try:
             from ..vendor.restormer_arch import Restormer as VendoredRestormer  # type: ignore
             Restormer = VendoredRestormer
-        except Exception as e:
-            raise RuntimeError("Restormer architecture not available: vendored restormer_arch.py missing.") from e
+        except Exception:
+            try:
+                from basicsr.archs.restormer_arch import Restormer as BSRestormer  # type: ignore
+                Restormer = BSRestormer
+            except Exception as e:
+                raise RuntimeError("Restormer architecture not available: install 'basicsr' or provide vendor file src/m4_photo_organizer/vendor/restormer_arch.py") from e
         # Instantiate model and load weights
         self.model = Restormer()
         state = torch.load(str(weight_path), map_location="cpu")
@@ -61,4 +65,3 @@ class RestormerRunner:
             y = self.model(x)
         out = self._to_image(y)
         return {"image": out, "engine": "restormer", "device": str(self.device)}
-

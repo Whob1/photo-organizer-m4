@@ -126,6 +126,8 @@ class Rclone:
                 recent = [str(y), str(y-1), str(y-2)]
             except Exception:
                 recent = []
+            # Include mount root first (your path is /Users/sheldon/GooglePhotos)
+            candidates.append(self.mount)
             by_year = media_root / "by-year"
             for yy in recent:
                 candidates.append(by_year / yy)
