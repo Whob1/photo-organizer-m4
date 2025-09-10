@@ -39,7 +39,41 @@ class Rclone:
             except (FileNotFoundError, NotADirectoryError, PermissionError):
                 continue
 
+    def _mdfind_media(self, max_scan: int, src_dir: Path | None) -> Iterator[Path]:
+        # Use macOS Spotlight (mdfind) to quickly locate images/movies under the mount
+        try:
+            import platform, subprocess
+            if platform.system() != "Darwin":
+                return iter(())
+            base = str(src_dir or self.mount)
+            query = '(kMDItemContentTypeTree == "public.image" || kMDItemContentTypeTree == "public.movie")'
+            cmd = [
+                "mdfind",
+                "-onlyin", base,
+                query,
+            ]
+            res = subprocess.run(cmd, capture_output=True, text=True, timeout=SETTINGS.scan_max_seconds)
+            if res.returncode != 0:
+                return iter(())
+            lines = [l.strip() for l in res.stdout.splitlines() if l.strip()]
+            out: list[Path] = []
+            for p in lines:
+                if len(out) >= max_scan:
+                    break
+                suf = Path(p).suffix.lower()
+                if suf in SUFFIXES:
+                    out.append(Path(p))
+            return iter(out)
+        except Exception:
+            return iter(())
+
     def iter_media(self, max_scan: int = 2000, src_dir: Path | None = None) -> Iterator[Path]:
+        # Try fast mdfind first on macOS
+        fast = list(self._mdfind_media(max_scan, src_dir))
+        if fast:
+            for p in fast:
+                yield p
+            return
         # Build candidate roots
         media_root = self.mount / "media"
         candidates: List[Path] = []
