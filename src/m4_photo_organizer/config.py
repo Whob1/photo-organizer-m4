@@ -16,7 +16,7 @@ class Settings(BaseModel):
     ai_enable_classify: bool = Field(default=True)
     ai_enable_enhance: bool = Field(default=True)
     models_dir: Path = Field(default=Path("./models"))
-    photo_model_filename: str = Field(default="photo_enhance.onnx")
+    photo_model_filename: str = Field(default="restormer_real_denoising.pth")
     video_model_filename: str = Field(default="video_enhance.onnx")
     photo_model_url: str = Field(default="https://huggingface.co/deepinv/Restormer/resolve/main/gaussian_color_denoising_sigma25.pth?download=true")
     video_model_url: str = Field(default="https://huggingface.co/bukuroo/RealESRGAN-ONNX/resolve/main/real-esrgan-x4plus-128.onnx?download=true")
@@ -53,7 +53,7 @@ class Settings(BaseModel):
             ai_enable_classify=os.getenv("PHOTOORG_AI_CLASSIFY", "1") != "0",
             ai_enable_enhance=os.getenv("PHOTOORG_AI_ENHANCE", "1") != "0",
             models_dir=Path(os.getenv("PHOTOORG_MODELS_DIR", "./models")),
-            photo_model_filename=os.getenv("PHOTOORG_PHOTO_MODEL_NAME", "photo_enhance.onnx"),
+            photo_model_filename=os.getenv("PHOTOORG_PHOTO_MODEL_NAME", "restormer_real_denoising.pth"),
             video_model_filename=os.getenv("PHOTOORG_VIDEO_MODEL_NAME", "video_enhance.onnx"),
             photo_model_url=os.getenv("PHOTOORG_PHOTO_MODEL_URL", "https://huggingface.co/deepinv/Restormer/resolve/main/gaussian_color_denoising_sigma25.pth?download=true"),
             video_model_url=os.getenv("PHOTOORG_VIDEO_MODEL_URL", "https://huggingface.co/bukuroo/RealESRGAN-ONNX/resolve/main/real-esrgan-x4plus-128.onnx?download=true"),

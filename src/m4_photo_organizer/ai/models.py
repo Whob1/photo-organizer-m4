@@ -69,7 +69,7 @@ def load_sessions(paths: ModelPaths) -> tuple[Optional[ort.InferenceSession], Op
     video_sess = None
     providers = preferred_providers()
     try:
-        if paths.photo.exists():
+        if paths.photo.exists() and paths.photo.suffix.lower() == ".onnx":
             photo_sess = ort.InferenceSession(str(paths.photo), providers=providers)
     except Exception:
         photo_sess = None

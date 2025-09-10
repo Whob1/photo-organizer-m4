@@ -35,6 +35,10 @@ fi
 photoorg setup || true
 photoorg setup-models || true
 
+# Default to `run` if no args were provided
+if [ $# -eq 0 ]; then
+  set -- run
+fi
 # Pass all args to CLI
 exec photoorg "$@"
 

@@ -23,6 +23,7 @@ def enhance_photo(im: Image.Image) -> tuple[Image.Image, Dict[str, Any]]:
     # Try ONNX model first if available; fall back to PIL pipeline
     paths = ensure_models()
     photo_sess, _ = load_sessions(paths)
+    # Only use ONNX if a proper ONNX photo model is configured and loaded
     if SETTINGS.ai_enable_enhance and photo_sess is not None:
         try:
             out = run_photo_model(photo_sess, im)
