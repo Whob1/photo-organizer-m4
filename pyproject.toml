@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "m4-photo-organizer"
-version = "0.1.0"
+version = "0.2.0"
 description = "Automatic photo and video organizer and enhancer for Apple M4 using rclone-mounted Google Photos"
 readme = "README.md"
 authors = [{ name = "Sheldon" }]
@@ -17,6 +17,8 @@ dependencies = [
   "aiosqlite>=0.20",
   "psutil>=6",
   "Pillow>=10",
+  "pillow-heif>=0.18",
+  "exifread>=3.0",
   "numpy>=1.26",
   "opencv-python>=4.10",
   "piexif>=1.1",

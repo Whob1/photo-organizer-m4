@@ -7,6 +7,8 @@ from .db import DB, sha256_file
 from .rclone_integration import Rclone
 from .processing.processors import PhotoProcessor, VideoProcessor
 from .storage import StorageManager
+from .metadata import extract_photo_metadata, write_sidecar_json
+from .uploader import Uploader
 
 class Organizer:
     def __init__(self):
@@ -15,13 +17,22 @@ class Organizer:
         self.storage = StorageManager()
         self.photo = PhotoProcessor()
         self.video = VideoProcessor()
+        self.uploader = Uploader()
 
     def organize_rel_path(self, src: Path) -> Path:
-        # Use date-based folders YYYY/MM/DD and keep original name
+        # Prefer EXIF/metadata date for photos; fallback to mtime
+        ts = None
         try:
-            ts = datetime.fromtimestamp(src.stat().st_mtime)
+            if src.suffix.lower() in {".jpg", ".jpeg", ".png", ".heic"}:
+                meta = extract_photo_metadata(src)
+                ts = meta.taken_at
         except Exception:
-            ts = datetime.now()
+            ts = None
+        if ts is None:
+            try:
+                ts = datetime.fromtimestamp(src.stat().st_mtime)
+            except Exception:
+                ts = datetime.now()
         return Path(f"{ts:%Y/%m/%d}") / src.name
 
     def process_one(self, src: Path) -> Optional[Path]:
@@ -49,6 +60,11 @@ class Organizer:
             self.photo.enhance(staged, out.with_suffix(".jpg"))
             final_out = out.with_suffix(".jpg")
             media_type = "photo"
+            try:
+                meta = extract_photo_metadata(final_out)
+                write_sidecar_json(final_out, meta)
+            except Exception:
+                pass
         else:
             self.video.enhance(staged, out.with_suffix(".mp4"))
             final_out = out.with_suffix(".mp4")
@@ -56,6 +72,19 @@ class Organizer:
 
         # Cleanup staged file to reclaim space
         staged.unlink(missing_ok=True)
+
+        # Upload back to Google Photos mount under same rel path
+        try:
+            self.uploader.upload(final_out, rel if final_out.suffix == rel.suffix else rel.with_suffix(final_out.suffix))
+        except Exception:
+            # If upload fails, keep file locally for retry later
+            pass
+        else:
+            # After successful upload, remove local processed file to honor 5GB cap
+            try:
+                final_out.unlink(missing_ok=True)
+            except Exception:
+                pass
 
         # Record
         self.db.add(str(rel), h, media_type)
