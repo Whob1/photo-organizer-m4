@@ -108,12 +108,16 @@ class Organizer:
         return final_out
 
     def run_once(self, limit: int = 20) -> int:
+        self.log.info("Scanning for media to process", extra={"limit": limit})
         count = 0
-        for p in self.rclone.iter_media():
+        for p in self.rclone.iter_media(max_scan=limit * 50):
             if count >= limit:
                 break
+            self.log.debug("Processing item", extra={"path": str(p)})
             out = self.process_one(p)
             if out:
                 count += 1
+                self.log.info("Processed item", extra={"count": count, "output": str(out)})
+        self.log.info("Run complete", extra={"processed": count})
         return count
 
