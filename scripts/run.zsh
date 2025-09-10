@@ -33,7 +33,7 @@ fi
 
 # Ensure dirs and models
 photoorg setup || true
-photoorg setup_models || true
+photoorg setup-models || true
 
 # Pass all args to CLI
 exec photoorg "$@"
