@@ -1,7 +1,8 @@
 import typer
+from pathlib import Path
 from rich.console import Console
 from .organizer import Organizer
-from .rclone_integration import Rclone
+from .rclone_integration import Rclone, SUFFIXES
 from .config import SETTINGS
 
 app = typer.Typer(help="M4 Photo & Video Organizer/Enhancer")
@@ -95,6 +96,95 @@ def debug_scan(scan_max: int = typer.Option(50), src_dir: str = typer.Option(Non
     for p in items[:scan_max]:
         console.print(str(p))
     console.print({"found": len(items)})
+
+@app.command()
+def debug_comprehensive(
+    scan_max: int = typer.Option(50, help="Max files to find"),
+    src_dir: str = typer.Option(None, help="Specific directory to scan"),
+    verbose: bool = typer.Option(False, help="Enable verbose logging")
+):
+    """Comprehensive debugging of the search system with detailed output."""
+    import logging
+    from .logging import get_logger
+    
+    # Set up verbose logging if requested
+    if verbose:
+        logging.getLogger("m4_photo_organizer").setLevel(logging.DEBUG)
+        
+    console.rule("🔍 Comprehensive Search Debug")
+    
+    # Show current configuration
+    console.print("📋 [bold]Current Configuration:[/bold]")
+    console.print(f"  • Google Photos Mount: {SETTINGS.google_photos_mount}")
+    console.print(f"  • Mount Exists: {SETTINGS.google_photos_mount.exists()}")
+    console.print(f"  • Scan Max Seconds: {SETTINGS.scan_max_seconds}")
+    console.print(f"  • Scan Max Per Root: {SETTINGS.scan_max_entries_per_root}")
+    console.print(f"  • Supported Extensions: {len(SUFFIXES)} types")
+    console.print("")
+    
+    # Show search directories that will be tried
+    console.print("📁 [bold]Search Directories:[/bold]")
+    if src_dir:
+        console.print(f"  • Specified: {src_dir} (exists: {Path(src_dir).exists()})")
+    else:
+        console.print("  • No specific directory - will try fallbacks")
+        
+    # Common directories that will be searched
+    common_dirs = [
+        Path.home() / "Pictures",
+        Path.home() / "Downloads", 
+        Path.home() / "Desktop",
+        Path("/tmp"),
+        Path("/var/tmp"),
+        Path.cwd(),
+    ]
+    
+    console.print("  • Common directories to try:")
+    for d in common_dirs:
+        exists = "✅" if d.exists() else "❌"
+        console.print(f"    {exists} {d}")
+    console.print("")
+    
+    # Perform the search
+    console.print("🔎 [bold]Performing Search...[/bold]")
+    rc = Rclone()
+    
+    try:
+        items = list(rc.iter_media(max_scan=scan_max, src_dir=Path(src_dir) if src_dir else None))
+        
+        console.print(f"✅ [bold green]Found {len(items)} media files[/bold green]")
+        
+        if items:
+            console.print("\n📄 [bold]Sample Files Found:[/bold]")
+            for i, p in enumerate(items[:min(10, len(items))]):
+                console.print(f"  {i+1:2d}. {p}")
+            
+            if len(items) > 10:
+                console.print(f"  ... and {len(items) - 10} more files")
+                
+            # Show file type breakdown
+            extensions = {}
+            for p in items:
+                ext = p.suffix.lower()
+                extensions[ext] = extensions.get(ext, 0) + 1
+                
+            console.print(f"\n📊 [bold]File Types Found:[/bold]")
+            for ext, count in sorted(extensions.items()):
+                console.print(f"  • {ext}: {count} files")
+        else:
+            console.print("❌ [bold red]No media files found[/bold red]")
+            console.print("\n💡 [bold]Suggestions:[/bold]")
+            console.print("  1. Check if your Google Photos mount is properly configured")
+            console.print("  2. Try specifying a directory with --src-dir")
+            console.print("  3. Set PHOTOORG_SEARCH_DIRS environment variable (colon-separated paths)")
+            console.print("  4. Set PHOTOORG_GOOGLE_MOUNT environment variable to your mount path")
+            console.print("  5. Use --verbose flag to see detailed search logs")
+            
+    except Exception as e:
+        console.print(f"❌ [bold red]Search failed with error:[/bold red] {e}")
+        if verbose:
+            import traceback
+            console.print(traceback.format_exc())
 
 @app.command()
 def status():

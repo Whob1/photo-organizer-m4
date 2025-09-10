@@ -4,13 +4,15 @@ from typing import Iterator, List
 import os, time
 from collections import deque
 from .config import SETTINGS
+from .logging import get_logger
 
-SUFFIXES = {".jpg", ".jpeg", ".png", ".heic", ".mp4", ".mov", ".avi", ".mkv"}
+SUFFIXES = {".jpg", ".jpeg", ".png", ".heic", ".mp4", ".mov", ".avi", ".mkv", ".webp", ".gif", ".tiff", ".tif", ".bmp", ".webm", ".m4v", ".3gp", ".flv", ".wmv"}
 
 class Rclone:
     def __init__(self, mount_path: Path | None = None):
         self.mount = Path(mount_path or SETTINGS.google_photos_mount)
         self._remote_map: dict[Path, str | None] = {}
+        self.log = get_logger(__name__)
 
     def _bfs_scandir(self, root: Path, max_entries: int, max_seconds: int) -> Iterator[Path]:
         start = time.time()
@@ -97,60 +99,188 @@ class Rclone:
         except Exception:
             return []
 
-    def iter_media(self, max_scan: int = 2000, src_dir: Path | None = None) -> Iterator[Path]:
-        # Try rclone lsf first for speed on FUSE mounts
-        lsf = self._lsf_media(max_scan)
-        if lsf:
-            self._remote_map.clear()
-            for mp, rel in lsf:
-                self._remote_map[mp] = rel
-                yield mp
+    def _find_media_recursive(self, root: Path, max_entries: int, max_seconds: int) -> Iterator[Path]:
+        """Enhanced recursive search with better error handling and logging."""
+        start = time.time()
+        found = 0
+        self.log.debug(f"Starting recursive search in {root}")
+        
+        if not root.exists():
+            self.log.warning(f"Search root does not exist: {root}")
             return
-        # Try fast mdfind first on macOS
-        fast = list(self._mdfind_media(max_scan, src_dir))
-        if fast:
-            self._remote_map.clear()
-            for mp, _ in fast:
-                self._remote_map[mp] = None
-                yield mp
+            
+        if not root.is_dir():
+            self.log.warning(f"Search root is not a directory: {root}")
             return
-        # Build candidate roots
-        media_root = self.mount / "media"
-        candidates: List[Path] = []
-        if src_dir:
-            candidates.append(Path(src_dir))
-        else:
-            try:
-                from datetime import datetime
-                y = datetime.now().year
-                recent = [str(y), str(y-1), str(y-2)]
-            except Exception:
-                recent = []
-            # Include mount root first (your path is /Users/sheldon/GooglePhotos)
-            candidates.append(self.mount)
-            by_year = media_root / "by-year"
-            for yy in recent:
-                candidates.append(by_year / yy)
-            candidates.extend([
-                media_root / "by-month",
-                media_root / "by-day",
-                media_root / "all",
-                self.mount / "album",
-                self.mount / "shared-album",
-            ])
-        # Walk each root with bounded time and entries
-        per_root = min(max_scan, SETTINGS.scan_max_entries_per_root)
-        max_sec = SETTINGS.scan_max_seconds
-        seen = 0
-        for base in candidates:
-            if not base.exists():
-                continue
-            for p in self._bfs_scandir(base, per_root, max_sec):
-                self._remote_map[p] = None
-                yield p
-                seen += 1
-                if seen >= max_scan:
+            
+        try:
+            for item in root.rglob("*"):
+                if found >= max_entries or (time.time() - start) > max_seconds:
+                    self.log.debug(f"Search limits reached: found={found}, time={time.time()-start:.1f}s")
                     return
+                    
+                if item.is_file() and not item.name.startswith('.'):
+                    suffix = item.suffix.lower()
+                    if suffix in SUFFIXES:
+                        found += 1
+                        self.log.debug(f"Found media file: {item}")
+                        yield item
+                        
+        except (PermissionError, OSError) as e:
+            self.log.warning(f"Error during recursive search in {root}: {e}")
+            
+        self.log.debug(f"Recursive search completed: found {found} files in {time.time()-start:.1f}s")
+
+    def _search_common_directories(self, max_scan: int) -> Iterator[Path]:
+        """Search common photo/video directories on the system."""
+        common_dirs = [
+            Path.home() / "Pictures",
+            Path.home() / "Downloads", 
+            Path.home() / "Desktop",
+            Path("/tmp"),
+            Path("/var/tmp"),
+            Path.cwd(),
+        ]
+        
+        # Add environment variable paths
+        if "PHOTOORG_SEARCH_DIRS" in os.environ:
+            extra_dirs = os.environ["PHOTOORG_SEARCH_DIRS"].split(":")
+            common_dirs.extend([Path(d) for d in extra_dirs if d.strip()])
+            
+        found = 0
+        for search_dir in common_dirs:
+            if found >= max_scan:
+                break
+                
+            if search_dir.exists() and search_dir.is_dir():
+                self.log.debug(f"Searching common directory: {search_dir}")
+                try:
+                    for item in self._find_media_recursive(search_dir, max_scan - found, SETTINGS.scan_max_seconds):
+                        yield item
+                        found += 1
+                        if found >= max_scan:
+                            break
+                except Exception as e:
+                    self.log.warning(f"Error searching {search_dir}: {e}")
+                    continue
+
+    def iter_media(self, max_scan: int = 2000, src_dir: Path | None = None) -> Iterator[Path]:
+        """Enhanced media discovery with comprehensive fallback mechanisms."""
+        self.log.info(f"Starting media search: max_scan={max_scan}, src_dir={src_dir}")
+        found_count = 0
+        
+        # If specific source directory is provided, search there first
+        if src_dir:
+            src_path = Path(src_dir)
+            self.log.info(f"Searching specified directory: {src_path}")
+            if src_path.exists():
+                for item in self._find_media_recursive(src_path, max_scan, SETTINGS.scan_max_seconds):
+                    self._remote_map[item] = None
+                    yield item
+                    found_count += 1
+                    if found_count >= max_scan:
+                        self.log.info(f"Found {found_count} files in specified directory")
+                        return
+            else:
+                self.log.warning(f"Specified source directory does not exist: {src_path}")
+        
+        # Try rclone lsf first for speed on FUSE mounts
+        if found_count < max_scan:
+            self.log.debug("Trying rclone lsf method")
+            try:
+                lsf = self._lsf_media(max_scan - found_count)
+                if lsf:
+                    self.log.info(f"Found {len(lsf)} files via rclone lsf")
+                    self._remote_map.clear()
+                    for mp, rel in lsf:
+                        self._remote_map[mp] = rel
+                        yield mp
+                        found_count += 1
+                        if found_count >= max_scan:
+                            return
+            except Exception as e:
+                self.log.warning(f"rclone lsf failed: {e}")
+        
+        # Try fast mdfind on macOS
+        if found_count < max_scan:
+            self.log.debug("Trying mdfind method (macOS)")
+            try:
+                fast = list(self._mdfind_media(max_scan - found_count, src_dir))
+                if fast:
+                    self.log.info(f"Found {len(fast)} files via mdfind")
+                    for mp in fast:
+                        self._remote_map[mp] = None
+                        yield mp
+                        found_count += 1
+                        if found_count >= max_scan:
+                            return
+            except Exception as e:
+                self.log.warning(f"mdfind failed: {e}")
+        
+        # Try configured mount paths
+        if found_count < max_scan:
+            self.log.debug("Searching configured mount paths")
+            media_root = self.mount / "media"
+            candidates: List[Path] = []
+            
+            if not src_dir:  # Only use default candidates if no specific dir provided
+                try:
+                    from datetime import datetime
+                    y = datetime.now().year
+                    recent = [str(y), str(y-1), str(y-2)]
+                except Exception:
+                    recent = []
+                
+                # Include mount root first
+                candidates.append(self.mount)
+                by_year = media_root / "by-year"
+                for yy in recent:
+                    candidates.append(by_year / yy)
+                candidates.extend([
+                    media_root / "by-month",
+                    media_root / "by-day", 
+                    media_root / "all",
+                    self.mount / "album",
+                    self.mount / "shared-album",
+                ])
+            
+            # Walk each candidate root
+            per_root = min(max_scan - found_count, SETTINGS.scan_max_entries_per_root)
+            max_sec = SETTINGS.scan_max_seconds
+            
+            for base in candidates:
+                if found_count >= max_scan:
+                    break
+                if not base.exists():
+                    self.log.debug(f"Candidate path does not exist: {base}")
+                    continue
+                    
+                self.log.debug(f"Searching candidate path: {base}")
+                try:
+                    for p in self._bfs_scandir(base, per_root, max_sec):
+                        self._remote_map[p] = None
+                        yield p
+                        found_count += 1
+                        if found_count >= max_scan:
+                            break
+                except Exception as e:
+                    self.log.warning(f"Error searching {base}: {e}")
+                    continue
+        
+        # Final fallback: search common directories
+        if found_count < max_scan:
+            self.log.info("Using fallback search in common directories")
+            try:
+                for item in self._search_common_directories(max_scan - found_count):
+                    self._remote_map[item] = None
+                    yield item
+                    found_count += 1
+                    if found_count >= max_scan:
+                        break
+            except Exception as e:
+                self.log.warning(f"Fallback search failed: {e}")
+        
+        self.log.info(f"Media search completed: found {found_count} files")
 
     def download(self, src: Path, dest: Path) -> None:
         dest.parent.mkdir(parents=True, exist_ok=True)
