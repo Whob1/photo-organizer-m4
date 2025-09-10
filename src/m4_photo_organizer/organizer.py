@@ -47,12 +47,20 @@ class Organizer:
         out = SETTINGS.processed_dir / rel
         if out.exists():
             return None
+        # Skip if DB already recorded this rel path (processed previously)
+        if self.db.has_path(str(rel)):
+            return None
 
-        # Pre-check disk budget: assume up to 2x size during processing
-        size = src.stat().st_size
+        # Pre-check disk budget: assume up to ~2.5x size during processing
+        try:
+            size = src.stat().st_size
+        except Exception:
+            # If source is from remote (not on mount), estimate conservatively (50MB)
+            size = 50 * 1024 * 1024
         need = int(size * 2.5)
         if not self.storage.ensure_room(need):
-            self.log.warning("Insufficient disk space for item", extra={"need_bytes": need, "current_usage": self.storage.usage_bytes()})
+            self.log.warning("Skipping due to disk budget", extra={"estimated_bytes": size, "need": need})
+            return None
             return None
 
         # Download
@@ -131,4 +139,3 @@ class Organizer:
                 SETTINGS.scan_max_seconds = old_secs
         self.log.info("Run complete", extra={"processed": count})
         return count
-
