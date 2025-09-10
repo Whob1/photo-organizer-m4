@@ -32,11 +32,19 @@ scripts/run.zsh status
 ```
 
 AI features
-- Photo enhancement: autocontrast, sharpen, gentle color/contrast tweaks
+- Photo enhancement: ONNX photo model (ESRGAN x2 by default) with fallback to fast local pipeline
+- Video enhancement: frame-wise sampling with AI metrics; hook for ONNX model (downloaded if present)
 - Face detection (OpenCV Haar); face count and bounding boxes (limited in sidecar)
 - Quality scoring: blur, brightness, colorfulness; tags like blurry/low_light/vivid
 - Perceptual de-duplication: pHash stored alongside SHA-256
 - Thumbnails: generated at data/thumbnails
+
+Models
+- Models are stored under models/ and are downloaded automatically on first run.
+- Defaults (override via env):
+  - PHOTOORG_PHOTO_MODEL_URL: ESRGAN x2 ONNX
+  - PHOTOORG_VIDEO_MODEL_URL: SRMD x2 ONNX
+- To change paths: PHOTOORG_MODELS_DIR, PHOTOORG_PHOTO_MODEL_NAME, PHOTOORG_VIDEO_MODEL_NAME
 
 Configuration flags (env)
 - PHOTOORG_AI_FACES=0 to disable face detection

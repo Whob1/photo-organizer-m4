@@ -5,7 +5,7 @@ import subprocess
 import cv2
 import numpy as np
 from ..config import SETTINGS
-from ..ai.enhance import enhance_photo_pil, summarize_enhance
+from ..ai.enhance import enhance_photo, enhance_photo_pil, summarize_enhance
 from ..ai.classify import quality_scores_bgr
 from ..ai.faces import detect_faces_bboxes_bgr
 
@@ -16,8 +16,8 @@ class PhotoProcessor:
         with Image.open(src) as im:
             im = im.convert("RGB")
             if SETTINGS.ai_enable_enhance:
-                im2 = enhance_photo_pil(im)
-                summary.update(summarize_enhance())
+                im2, meta = enhance_photo(im)
+                summary.update({"enhance": meta})
             else:
                 im2 = im
             im2.save(dest, quality=92, optimize=True)
@@ -60,7 +60,8 @@ class VideoProcessor:
             str(dest),
         ]
         subprocess.run(cmd, check=True)
-        # Create a small thumbnail from middle frame and compute quality/face stats on sampled frames
+        # Hook: in the future we can run a video ONNX model frame-wise if desired
+        # For now, we compute quality/face stats and thumbnails efficiently.
         summary = {"frames_sampled": 0}
         try:
             cap = cv2.VideoCapture(str(dest))

@@ -31,8 +31,9 @@ if sysctl -n machdep.cpu.brand_string | grep -qi "Apple"; then
   echo "[bootstrap] Apple Silicon detected. If PyTorch is installed, MPS fallback is enabled."
 fi
 
-# Ensure dirs
+# Ensure dirs and models
 photoorg setup || true
+photoorg setup_models || true
 
 # Pass all args to CLI
 exec photoorg "$@"

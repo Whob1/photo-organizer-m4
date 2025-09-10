@@ -9,9 +9,22 @@ console = Console()
 def setup():
     """Ensure directories exist."""
     from .config import SETTINGS
-    for d in [SETTINGS.raw_dir, SETTINGS.processed_dir, SETTINGS.tmp_dir]:
+    for d in [SETTINGS.raw_dir, SETTINGS.processed_dir, SETTINGS.tmp_dir, SETTINGS.thumbnails_dir, SETTINGS.models_dir]:
         d.mkdir(parents=True, exist_ok=True)
     console.print("Project directories ready.")
+
+@app.command()
+def setup_models():
+    """Download AI models if missing and verify they can be loaded."""
+    from .ai.models import ensure_models, load_sessions
+    paths = ensure_models()
+    photo_sess, video_sess = load_sessions(paths)
+    console.print({
+        "photo_model": str(paths.photo),
+        "photo_loaded": photo_sess is not None,
+        "video_model": str(paths.video),
+        "video_loaded": video_sess is not None,
+    })
 
 @app.command()
 def run(limit: int = typer.Option(20, help="Max items to process this run")):
