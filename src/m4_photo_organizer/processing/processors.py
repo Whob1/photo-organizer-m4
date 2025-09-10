@@ -60,23 +60,60 @@ class VideoProcessor:
             str(dest),
         ]
         subprocess.run(cmd, check=True)
-        # Create a small thumbnail from middle frame if OpenCV available
-        summary = {}
+        # Create a small thumbnail from middle frame and compute quality/face stats on sampled frames
+        summary = {"frames_sampled": 0}
         try:
             cap = cv2.VideoCapture(str(dest))
             if cap and cap.isOpened():
                 frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT)) or 0
-                mid = max(frames // 2, 0)
-                cap.set(cv2.CAP_PROP_POS_FRAMES, mid)
-                ok, frame = cap.read()
-                if ok and thumb_out is not None:
+                sample_idxs = []
+                if frames > 0:
+                    # sample up to 10 evenly spaced frames
+                    steps = max(min(frames // 10, 30), 1)
+                    sample_idxs = list(range(0, frames, steps))[:10]
+                blur_vals, bright_vals, color_vals = [], [], []
+                face_count_total = 0
+                first_frame = None
+                for idx in sample_idxs:
+                    cap.set(cv2.CAP_PROP_POS_FRAMES, idx)
+                    ok, frame = cap.read()
+                    if not ok:
+                        continue
+                    if first_frame is None:
+                        first_frame = frame
+                    q = quality_scores_bgr(frame)
+                    blur_vals.append(q["blur"]) 
+                    bright_vals.append(q["brightness"]) 
+                    color_vals.append(q["colorfulness"]) 
+                    faces = detect_faces_bboxes_bgr(frame) if SETTINGS.ai_enable_faces else []
+                    face_count_total += len(faces)
+                if first_frame is not None and thumb_out is not None:
                     thumb_out.parent.mkdir(parents=True, exist_ok=True)
-                    h, w = frame.shape[:2]
+                    h, w = first_frame.shape[:2]
                     scale = 320 / max(h, w)
-                    frame_small = cv2.resize(frame, (int(w*scale), int(h*scale)))
+                    frame_small = cv2.resize(first_frame, (int(w*scale), int(h*scale)))
                     cv2.imwrite(str(thumb_out), frame_small)
+                n = max(len(sample_idxs), 1)
+                if blur_vals:
+                    summary.update({
+                        "quality": {
+                            "blur_avg": float(sum(blur_vals)/len(blur_vals)),
+                            "brightness_avg": float(sum(bright_vals)/len(bright_vals)) if bright_vals else None,
+                            "colorfulness_avg": float(sum(color_vals)/len(color_vals)) if color_vals else None,
+                        },
+                        "faces": {"avg_per_frame": float(face_count_total / len(sample_idxs)) if sample_idxs else 0.0}
+                    })
+                summary["frames_sampled"] = len(sample_idxs)
             if cap:
                 cap.release()
+        except Exception:
+            pass
+        # Write AI summary sidecar next to video
+        try:
+            import json
+            sidecar = dest.with_suffix(dest.suffix + ".ai.json")
+            with open(sidecar, "w") as f:
+                json.dump(summary, f, indent=2)
         except Exception:
             pass
         return summary
