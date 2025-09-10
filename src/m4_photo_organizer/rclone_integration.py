@@ -8,32 +8,41 @@ class Rclone:
         self.mount = Path(mount_path or SETTINGS.google_photos_mount)
 
     def iter_media(self, max_scan: int = 2000) -> Iterator[Path]:
-        # Prefer recent years to reduce initial scan overhead on large mounts
+        # Scan only media files with known extensions, across common mount dirs
+        suffixes = {".jpg", ".jpeg", ".png", ".heic", ".mp4", ".mov", ".avi", ".mkv"}
         candidates: list[Path] = []
         media_root = self.mount / "media"
-        by_year = media_root / "by-year"
-        recent_years = []
+        # Prioritize by-year recent, then by-month/day, then all, then albums
         try:
             from datetime import datetime
             y = datetime.now().year
-            recent_years = [str(y), str(y-1), str(y-2)]
+            recent = [str(y), str(y-1), str(y-2)]
         except Exception:
-            recent_years = []
-        for y in recent_years:
-            candidates.append(by_year / y)
-        # Fallback to media/all if needed
-        candidates.append(media_root / "all")
-
+            recent = []
+        by_year = media_root / "by-year"
+        for yy in recent:
+            candidates.append(by_year / yy)
+        candidates.extend([
+            media_root / "by-month",
+            media_root / "by-day",
+            media_root / "all",
+            self.mount / "album",
+            self.mount / "shared-album",
+        ])
         seen = 0
         for base in candidates:
             if not base.exists():
                 continue
-            for p in base.rglob("*"):
-                if seen >= max_scan:
-                    return
-                if p.is_file() and p.suffix.lower() in {".jpg", ".jpeg", ".png", ".heic", ".mp4", ".mov", ".avi", ".mkv"}:
-                    seen += 1
-                    yield p
+            try:
+                for p in base.rglob("*"):
+                    if seen >= max_scan:
+                        return
+                    if p.is_file() and p.suffix.lower() in suffixes:
+                        seen += 1
+                        yield p
+            except Exception:
+                # Ignore unreadable paths
+                continue
 
     def download(self, src: Path, dest: Path) -> None:
         dest.parent.mkdir(parents=True, exist_ok=True)

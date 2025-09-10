@@ -27,7 +27,10 @@ def setup_models():
         for p in rest_dir.glob("*.pth"):
             present[p.name] = p.stat().st_size
     # Restormer readiness: arch file + torch + deps
-    rest_arch = (SETTINGS.models_dir.parent / 'src' / 'm4_photo_organizer' / 'vendor' / 'restormer_arch.py')
+    import os
+    from pathlib import Path
+    pkg_dir = Path(__file__).resolve().parent
+    rest_arch = pkg_dir / 'vendor' / 'restormer_arch.py'
     try:
         import torch
         torch_ok = True
@@ -35,6 +38,18 @@ def setup_models():
     except Exception:
         torch_ok = False
         mps = False
+
+    # Attempt to fetch vendor file if missing
+    if not rest_arch.exists():
+        try:
+            import urllib.request
+            rest_arch.parent.mkdir(parents=True, exist_ok=True)
+            url = "https://raw.githubusercontent.com/swz30/Restormer/master/basicsr/archs/restormer_arch.py"
+            with urllib.request.urlopen(url) as resp, open(rest_arch, 'wb') as out:
+                out.write(resp.read())
+        except Exception:
+            pass
+
     console.print({
         "photo_model": str(paths.photo),
         "photo_loaded": photo_sess is not None,
