@@ -30,6 +30,8 @@ class Settings(BaseModel):
     ])
     # Feature flags
     ai_video_superres: bool = Field(default=True)
+    ai_photo_restormer: bool = Field(default=True)
+    restormer_default_weight: str = Field(default="real_denoising.pth")
 
     class Config:
         arbitrary_types_allowed = True
@@ -65,6 +67,8 @@ class Settings(BaseModel):
                 os.getenv("PHOTOORG_RESTORMER_W4", "https://huggingface.co/deepinv/Restormer/resolve/main/deraining.pth?download=true"),
             ],
             ai_video_superres=os.getenv("PHOTOORG_AI_VIDEO_SR", "1") != "0",
+            ai_photo_restormer=os.getenv("PHOTOORG_AI_RESTORMER", "1") != "0",
+            restormer_default_weight=os.getenv("PHOTOORG_RESTORMER_WEIGHT", "real_denoising.pth"),
         )
 
 SETTINGS = Settings.load()

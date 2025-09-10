@@ -1,0 +1,55 @@
+from __future__ import annotations
+from pathlib import Path
+from typing import Optional, Dict, Any
+
+
+def _mps_device_available() -> bool:
+    try:
+        import torch
+        return torch.backends.mps.is_available() and torch.backends.mps.is_built()
+    except Exception:
+        return False
+
+
+class RestormerRunner:
+    def __init__(self, weight_path: Path):
+        import torch
+        self.torch = torch
+        self.device = torch.device("mps") if _mps_device_available() else torch.device("cpu")
+        # Import Restormer architecture from the official repo if installed
+        try:
+            from basicsr.archs.restormer_arch import Restormer  # type: ignore
+        except Exception as e:
+            raise RuntimeError("Restormer package not installed. Please enable installer in run script.") from e
+        # Instantiate a generic Restormer; small config that will accept provided weights
+        self.model = Restormer()  # relies on state dict to define shapes
+        self.model.load_state_dict(torch.load(str(weight_path), map_location="cpu"))
+        self.model.to(self.device)
+        self.model.eval()
+
+    @staticmethod
+    def _to_tensor(im):
+        import numpy as np
+        arr = np.asarray(im.convert("RGB")) / 255.0
+        arr = arr.astype("float32")
+        arr = arr.transpose(2, 0, 1)  # CHW
+        import torch
+        ten = torch.from_numpy(arr).unsqueeze(0)
+        return ten
+
+    @staticmethod
+    def _to_image(tensor):
+        import numpy as np
+        import PIL.Image as Image
+        ten = tensor.detach().cpu().clamp(0.0, 1.0).squeeze(0).numpy()
+        ten = ten.transpose(1, 2, 0)
+        arr = (ten * 255.0).astype("uint8")
+        return Image.fromarray(arr, mode="RGB")
+
+    def enhance(self, im) -> Dict[str, Any]:
+        x = self._to_tensor(im).to(self.device)
+        with self.torch.inference_mode():
+            y = self.model(x)
+        out = self._to_image(y)
+        return {"image": out, "engine": "restormer", "device": str(self.device)}
+

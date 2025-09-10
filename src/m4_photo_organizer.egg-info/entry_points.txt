@@ -1,0 +1,2 @@
+[console_scripts]
+photoorg = m4_photo_organizer.cli:app

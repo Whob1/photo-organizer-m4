@@ -20,17 +20,28 @@ def enhance_photo_pil(im: Image.Image) -> Image.Image:
 
 
 def enhance_photo(im: Image.Image) -> tuple[Image.Image, Dict[str, Any]]:
-    # Try ONNX model first if available; fall back to PIL pipeline
+    # 1) Try Restormer if enabled and weights exist
+    try:
+        from .photo_restormer import RestormerRunner
+        from ..config import SETTINGS
+        paths = ensure_models()
+        rest_w = SETTINGS.models_dir / "restormer" / SETTINGS.restormer_default_weight
+        if SETTINGS.ai_photo_restormer and rest_w.exists():
+            runner = RestormerRunner(rest_w)
+            res = runner.enhance(im)
+            return res["image"], {"engine": res["engine"], "device": res["device"], "weight": SETTINGS.restormer_default_weight}
+    except Exception:
+        pass
+    # 2) Try ONNX model if available
     paths = ensure_models()
     photo_sess, _ = load_sessions(paths)
-    # Only use ONNX if a proper ONNX photo model is configured and loaded
     if SETTINGS.ai_enable_enhance and photo_sess is not None:
         try:
             out = run_photo_model(photo_sess, im)
             return out, {"model": SETTINGS.photo_model_filename}
         except Exception:
             pass
-    # Fallback
+    # 3) Fallback
     return enhance_photo_pil(im), summarize_enhance()
 
 

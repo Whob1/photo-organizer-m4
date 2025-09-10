@@ -1,0 +1,15 @@
+typer[all]>=0.12
+rich>=13
+pydantic>=2
+aiofiles>=24
+aiosqlite>=0.20
+psutil>=6
+Pillow>=10
+pillow-heif>=0.18
+exifread>=3.0
+numpy>=1.26
+opencv-python>=4.10
+piexif>=1.1
+imagehash>=4.3
+onnxruntime>=1.18
+tqdm>=4.66

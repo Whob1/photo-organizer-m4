@@ -17,13 +17,21 @@ def setup():
 def setup_models():
     """Download AI models if missing and verify they can be loaded."""
     from .ai.models import ensure_models, load_sessions
+    from .config import SETTINGS
     paths = ensure_models()
     photo_sess, video_sess = load_sessions(paths)
+    # Restormer weights presence
+    rest_dir = SETTINGS.models_dir / "restormer"
+    present = {}
+    if rest_dir.exists():
+        for p in rest_dir.glob("*.pth"):
+            present[p.name] = p.stat().st_size
     console.print({
         "photo_model": str(paths.photo),
         "photo_loaded": photo_sess is not None,
         "video_model": str(paths.video),
         "video_loaded": video_sess is not None,
+        "restormer_weights": present,
     })
 
 @app.command()

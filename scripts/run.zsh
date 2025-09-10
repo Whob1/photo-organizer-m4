@@ -31,6 +31,15 @@ if sysctl -n machdep.cpu.brand_string | grep -qi "Apple"; then
   echo "[bootstrap] Apple Silicon detected. If PyTorch is installed, MPS fallback is enabled."
 fi
 
+# Optional install for Restormer (PyTorch) if enabled via env
+if [ "${PHOTOORG_AI_RESTORMER:-1}" = "1" ]; then
+  if ! python -c 'import torch; import importlib; importlib.import_module("basicsr.archs.restormer_arch")' >/dev/null 2>&1; then
+    echo "[bootstrap] Installing PyTorch + Restormer (this may take a while)"
+    pip install --upgrade 'torch' 'torchvision' 'torchaudio' || true
+    pip install --upgrade 'git+https://github.com/swz30/Restormer.git' || true
+  fi
+fi
+
 # Ensure dirs and models
 photoorg setup || true
 photoorg setup-models || true
