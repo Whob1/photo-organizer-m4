@@ -26,12 +26,24 @@ def setup_models():
     if rest_dir.exists():
         for p in rest_dir.glob("*.pth"):
             present[p.name] = p.stat().st_size
+    # Restormer readiness: arch file + torch + deps
+    rest_arch = (SETTINGS.models_dir.parent / 'src' / 'm4_photo_organizer' / 'vendor' / 'restormer_arch.py')
+    try:
+        import torch
+        torch_ok = True
+        mps = torch.backends.mps.is_available() and torch.backends.mps.is_built()
+    except Exception:
+        torch_ok = False
+        mps = False
     console.print({
         "photo_model": str(paths.photo),
         "photo_loaded": photo_sess is not None,
         "video_model": str(paths.video),
         "video_loaded": video_sess is not None,
         "restormer_weights": present,
+        "restormer_arch_vendored": rest_arch.exists(),
+        "torch_available": torch_ok,
+        "mps": mps,
     })
 
 @app.command()

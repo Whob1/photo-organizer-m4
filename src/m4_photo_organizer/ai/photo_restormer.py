@@ -21,12 +21,8 @@ class RestormerRunner:
         try:
             from ..vendor.restormer_arch import Restormer as VendoredRestormer  # type: ignore
             Restormer = VendoredRestormer
-        except Exception:
-            try:
-                from basicsr.archs.restormer_arch import Restormer as PkgRestormer  # type: ignore
-                Restormer = PkgRestormer
-            except Exception as e:
-                raise RuntimeError("Restormer architecture not available. Vendored file missing and basicsr not installed.") from e
+        except Exception as e:
+            raise RuntimeError("Restormer architecture not available: vendored restormer_arch.py missing.") from e
         # Instantiate model and load weights
         self.model = Restormer()
         state = torch.load(str(weight_path), map_location="cpu")
